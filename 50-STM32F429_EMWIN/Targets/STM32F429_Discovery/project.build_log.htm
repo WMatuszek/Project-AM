@@ -1,0 +1,66 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: µVision V5.21.1.0
+Copyright (C) 2016 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: N N AGH Flex license: MDK-ARM Professional: 100 user(s) (mdk_pro) Operation stops: 15 Aug 2018
+ 
+Tool Versions:
+Toolchain:       MDK-ARM Professional: 100 user(s)  Version: 5.21a
+Toolchain Path:  C:\Keil_v5\ARM\ARMCC\Bin
+C Compiler:      Armcc.exe V5.06 update 3 (build 300)
+Assembler:       Armasm.exe V5.06 update 3 (build 300)
+Linker/Locator:  ArmLink.exe V5.06 update 3 (build 300)
+Library Manager: ArmAr.exe V5.06 update 3 (build 300)
+Hex Converter:   FromElf.exe V5.06 update 3 (build 300)
+CPU DLL:         SARMCM3.DLL V5.21a
+Dialog DLL:      DCM.DLL V1.13.8.0
+Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V2.0.18.0
+Dialog DLL:      TCM.DLL V1.14.14.0
+ 
+<h2>Project:</h2>
+D:\Moje dokumenty\Pawe³\studia\Semestr VI\Aplikacje Mikrokontrolerów - Laboratorium\stm32f429-master\stm32f429-master\50-STM32F429_EMWIN\project.uvprojx
+Project File Date:  08/20/2017
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.06 update 3 (build 300)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
+Build target 'STM32F429I-Discovery'
+assembling startup_stm32f429_439xx.s...
+compiling tea5767.c...
+User\tea5767.c(173): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		div = (4 * (freq * 1000 + 225)) / 32.768;
+User\tea5767.c(176): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		div = (4 * (freq * 1000 - 225)) / 32.768;
+User\tea5767.c: 2 warnings, 0 errors
+compiling GUI_screens.c...
+User\GUI_screens.c(161): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  		PROGBAR_SetValue(hProgbar, 100 - (107.6 - freq) * 5);
+User\GUI_screens.c(167): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				freq = freq - 0.1;
+User\GUI_screens.c(168): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				freq = floor(freq * 10 + 0.5) / 10;
+User\GUI_screens.c(169): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				if (freq < 87.6) freq = 107.6;
+User\GUI_screens.c(180): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				freq = freq + 0.1;
+User\GUI_screens.c(181): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				freq = floor(freq * 10 + 0.5) / 10;
+User\GUI_screens.c(182): warning:  #1035-D: single-precision operand implicitly converted to double-precision
+  				if (freq > 107.6) freq = 87.6;
+User\GUI_screens.c: 7 warnings, 0 errors
+linking...
+Program Size: Code=81040 RO-data=18792 RW-data=916 ZI-data=4310996  
+FromELF: creating hex file...
+".\Targets\STM32F429_Discovery\project.axf" - 0 Error(s), 9 Warning(s).
+
+<h2>Collection of Component include folders:</h2>
+  D:\Moje dokumenty\Pawe³\studia\Semestr VI\Aplikacje Mikrokontrolerów - Laboratorium\stm32f429-master\stm32f429-master\50-STM32F429_EMWIN\RTE
+  C:\Keil_v5\ARM\PACK\Keil\STM32F4xx_DFP\2.11.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include
+
+<h2>Collection of Component Files used:</h2>
+Build Time Elapsed:  00:00:02
+</pre>
+</body>
+</html>
