@@ -6,75 +6,111 @@
 #include "button.h"
 #include "DIALOG.h"
 #include "stdio.h"
+#include "stdlib.h"
 #include "math.h"
 #include "tea5767.h"
 #include "bmp180.h"
 
-enum GUI_key_names{
+typedef enum {
 	RADIO_KEY = GUI_ID_BUTTON1,
 	CLOCK_KEY = GUI_ID_BUTTON2,
 	ALARM_KEY = GUI_ID_BUTTON3,
 	SETTING_KEY = GUI_ID_BUTTON4
-};
+} GUI_key_names;
 
-enum BMP180_Flag{
+typedef enum {
 	BMP180_NO_FLAG,
 	BMP180_INIT,
 	BMP180_MEASURE_TEMPERATURE,
 	BMP180_MEASURE_PRESSURE,
-	BMP180_READ_RESULT
-};
+	BMP180_READ_RESULT_TEMPERATURE,
+	BMP180_READ_RESULT_PRESSURE
+} BMP180_Flag_t;
 
-enum TEA5767_Flag{
+typedef enum {
 	TEA5767_NO_FLAG,
 	TEA5767_SET_FREQUENCY,
 	TEA5767_SCAN
-};
+} TEA5767_Flag_t;
 
-BUTTON_Handle hButtons[20];
+typedef enum {
+	BUS_FREE = 0,
+	BUS_BUSY = 1 
+} SERIAL_STATE_t;
 
-uint16_t counter = 0x00;
-float freq = 87.8;
 uint8_t TEA5767_Flags = TEA5767_NO_FLAG;
 uint8_t BMP180_Flags = BMP180_NO_FLAG;
+
+// Button handles
+BUTTON_Handle hButtons[20];
 
 TM_RTC_Time_t Time;
 TM_RTC_AlarmTime_t AlarmTime;
 
-static I2C_TypeDef* I2Cx = I2C3;
+static I2C_TypeDef* _I2Cx = I2C3;
 
+uint16_t _counter = 0x00;
+
+// I2C access flag
+SERIAL_STATE_t _I2Cx_state;
+
+// Data from sensors
+float _freq = 87.8;
+int32_t _temp = 0;
+int32_t _press = 0;
+
+/*
+	BMP180 interfacing functions
+*/
 uint8_t bmp180compliant_readByte(uint8_t addr, uint8_t reg){
-	return TM_I2C_Read(I2Cx, addr, reg);
+	return TM_I2C_Read(_I2Cx, addr, reg);
 }
 void bmp180compliant_readBytes(uint8_t addr, uint8_t reg, uint8_t *data, uint16_t count){
-	TM_I2C_ReadMulti(I2Cx, addr, reg, data, count);
+	TM_I2C_ReadMulti(_I2Cx, addr, reg, data, count);
 }
 void bmp180compliant_writeByte(uint8_t addr, uint8_t reg, uint8_t data){
-	TM_I2C_Write(I2Cx, addr, reg, data);
+	TM_I2C_Write(_I2Cx, addr, reg, data);
 }
 void bmp180compliant_writeBytes(uint8_t addr, uint8_t reg, uint8_t *data, uint16_t count){
-	TM_I2C_WriteMulti(I2Cx, addr, reg, data, count);
+	TM_I2C_WriteMulti(_I2Cx, addr, reg, data, count);
 }
 
+/*
+	TEA5767 interfacing functions
+*/
 void tea5767compliant_writeBytesNoRegister(uint8_t addr, uint8_t *data, uint16_t count){
-	TM_I2C_WriteMultiNoRegister(I2Cx, addr, data, count);
+	TM_I2C_WriteMultiNoRegister(_I2Cx, addr, data, count);
 }
 
 void tea5767compliant_readBytesNoRegister(uint8_t addr, uint8_t *data, uint16_t count){
-	TM_I2C_ReadMultiNoRegister(I2Cx, addr, data, count);
+	TM_I2C_ReadMultiNoRegister(_I2Cx, addr, data, count);
 }
 
 uint8_t tea5767compliant_isConnected(uint8_t addr){
-	return TM_I2C_IsDeviceConnected(I2Cx, addr);
+	return TM_I2C_IsDeviceConnected(_I2Cx, addr);
 }
 
-void deleteButtons(uint8_t start, uint8_t stop);
-void setFonts(uint8_t start, uint8_t stop, const GUI_FONT GUI_UNI_PTR * pfont);
+/*
+	Fonts/buttons
+*/
+void deleteButtons(uint8_t start, uint8_t stop){
+	uint8_t i;
+	for (i = start; i <= stop; i++) BUTTON_Delete(hButtons[i]);
+}
 
+void setFonts(uint8_t start, uint8_t stop, const GUI_FONT GUI_UNI_PTR * pfont){
+	uint8_t i;
+	for (i = start; i <= stop; i++) BUTTON_SetFont(hButtons[i], pfont);
+}
+
+/*
+	Sensor/radio install interface
+*/
 GUI_InitResult GUI_TEA5767_Init(I2C_TypeDef* I2Cx){
-	I2Cx = I2Cx;
-	
 	TEA5767_I2C_interface* tea5767i2cInterfacePtr;
+	
+	_I2Cx = I2Cx;
+	
 	tea5767i2cInterfacePtr = TEA5767_getI2CInterfacePtr();
 	tea5767i2cInterfacePtr->writeBytesNoRegister = tea5767compliant_writeBytesNoRegister;
 	tea5767i2cInterfacePtr->readBytesNoRegister = tea5767compliant_readBytesNoRegister;
@@ -87,20 +123,29 @@ GUI_InitResult GUI_TEA5767_Init(I2C_TypeDef* I2Cx){
 
 GUI_InitResult GUI_BMP180_Init(I2C_TypeDef* I2Cx){
 	//char buf[50];
-
-	I2Cx = I2Cx;
+	uint8_t deviceID = 0x00;
 	BMP180_I2C_interface * bmp180i2cInterfacePtr;
+
+	_I2Cx = I2Cx;
+	
 	bmp180i2cInterfacePtr = BMP180_getI2CInterfacePtr();
 	bmp180i2cInterfacePtr->readByte = bmp180compliant_readByte;
 	bmp180i2cInterfacePtr->readBytes = bmp180compliant_readBytes;
 	bmp180i2cInterfacePtr->writeByte = bmp180compliant_writeByte;
 	bmp180i2cInterfacePtr->writeBytes = bmp180compliant_writeBytes;
 	
-	BMP180_Flags = BMP180_INIT;
-
+	//BMP180_Flags = BMP180_INIT;
+	_I2Cx_state = BUS_BUSY;
+	BMP180_initialize2(*bmp180i2cInterfacePtr);
+	_I2Cx_state = BUS_FREE;
+	
 	Delayms(100);
 	
-	if (BMP180_readID() == 0x55){
+	_I2Cx_state = BUS_BUSY;
+	deviceID = BMP180_readID();
+	_I2Cx_state = BUS_FREE;
+	
+	if (deviceID == 0x55){
 		TM_USART_Puts(USART1, "BMP INIT SUCCESS\n");
 		return GUI_INIT_OK;
 	}
@@ -110,6 +155,9 @@ GUI_InitResult GUI_BMP180_Init(I2C_TypeDef* I2Cx){
 	}
 }
 
+/*
+	GUI init
+*/
 void GUI_InitMenu(void){
 	hButtons[0] = BUTTON_CreateEx(10, 260, 70, 50, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON1);
 	hButtons[1] = BUTTON_CreateEx(85, 260, 70, 50, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON2);
@@ -130,6 +178,13 @@ void GUI_InitMenu(void){
 	GUI_Exec();
 }
 
+/*
+	GUI screen loops
+*/
+
+/*
+	RADIO GUI loop
+*/
 uint16_t GUI_StartScreenRadio(void){
 	int keyFlag = 0;
 	uint8_t mute = TEA5767_Get_Mute();
@@ -155,18 +210,18 @@ uint16_t GUI_StartScreenRadio(void){
 	while(keyFlag != CLOCK_KEY && keyFlag != ALARM_KEY){
 		keyFlag = GUI_GetKey();
 		
-		if (mute == TEA5767_MUTE_ON) sprintf(buffer, "%.2f FM \nMUTE ON", freq);
-		else sprintf(buffer, "%.2f FM \n       ", freq);
+		if (mute == TEA5767_MUTE_ON) sprintf(buffer, "%.2f FM \nMUTE ON", _freq);
+		else sprintf(buffer, "%.2f FM \n       ", _freq);
 		TM_ILI9341_Puts(10, 5, buffer, &TM_Font_16x26, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
-		PROGBAR_SetValue(hProgbar, 100 - (107.6 - freq) * 5);
+		PROGBAR_SetValue(hProgbar, 100 - (107.6 - _freq) * 5);
 		GUI_Exec();
 		
 		switch(keyFlag){
 			case GUI_ID_BUTTON4:
 				// lower freqency
-				freq = freq - 0.1;
-				freq = floor(freq * 10 + 0.5) / 10;
-				if (freq < 87.6) freq = 107.6;
+				_freq = _freq - 0.1;
+				_freq = floor(_freq * 10 + 0.5) / 10;
+				if (_freq < 87.6) _freq = 107.6;
 				TEA5767_Flags = TEA5767_SET_FREQUENCY;
 				break;
 			
@@ -177,9 +232,9 @@ uint16_t GUI_StartScreenRadio(void){
 			
 			case GUI_ID_BUTTON6:
 				// increase frequency
-				freq = freq + 0.1;
-				freq = floor(freq * 10 + 0.5) / 10;
-				if (freq > 107.6) freq = 87.6;
+				_freq = _freq + 0.1;
+				_freq = floor(_freq * 10 + 0.5) / 10;
+				if (_freq > 107.6) _freq = 87.6;
 				TEA5767_Flags = TEA5767_SET_FREQUENCY;					
 				break;
 			
@@ -205,12 +260,44 @@ uint16_t GUI_StartScreenRadio(void){
 	return keyFlag;
 }
 
+/*
+	CLOCK GUI loop
+*/
 uint16_t GUI_StartScreenClock(){
+	const uint8_t TEMP_MEAS_DELAY_MS = 6;
+	const uint8_t PRESS_MEAS_DELAY_MS = 6;
+	const uint8_t MID_MEAS_DELAY = 10;
 	int keyFlag = 0;
+	double modf_temp;
 	char buffer[50] = "";
 	
+	PROGBAR_Handle hProgbar_temp = PROGBAR_CreateEx(10, 75, 219, 30, 0, WM_CF_SHOW, 0, GUI_ID_PROGBAR0);
+	PROGBAR_Handle hProgbar_press = PROGBAR_CreateEx(10, 110, 219, 30, 0, WM_CF_SHOW, 0, GUI_ID_PROGBAR0);
+	PROGBAR_SetFont(hProgbar_temp, &GUI_Font8x16);
+	PROGBAR_SetFont(hProgbar_press, &GUI_Font8x16);
+	
+	
 	while(keyFlag != RADIO_KEY && keyFlag != CLOCK_KEY && keyFlag != ALARM_KEY){
+	//while(keyFlag != RADIO_KEY && keyFlag != SETTING_KEY && keyFlag != ALARM_KEY){
 		keyFlag = GUI_GetKey();
+		// Temperature measurement
+		Delayms(MID_MEAS_DELAY);
+		_I2Cx_state = BUS_BUSY;
+		BMP180_startMeasurement(BMP180_M_TEMP);
+		_I2Cx_state = BUS_FREE;
+		Delayms(TEMP_MEAS_DELAY_MS);
+		_I2Cx_state = BUS_BUSY;
+		_temp = BMP180_readResult();
+		_I2Cx_state = BUS_FREE;
+		// Pressure
+		Delayms(MID_MEAS_DELAY);
+		_I2Cx_state = BUS_BUSY;
+		BMP180_startMeasurement(BMP180_M_PRESS_OSS_0);
+		_I2Cx_state = BUS_FREE;
+		Delayms(PRESS_MEAS_DELAY_MS);
+		_I2Cx_state = BUS_BUSY;
+		_press = BMP180_readResult();
+		_I2Cx_state = BUS_FREE;
 		
 		// show date, time, temperature
 		sprintf(buffer, "%02d.%02d.%04d\n%02d:%02d:%02d",
@@ -222,15 +309,31 @@ uint16_t GUI_StartScreenClock(){
 			Time.seconds
 		);
 		TM_ILI9341_Puts(10, 5, buffer, &TM_Font_16x26, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);		
+
+		sprintf(buffer, "%02d.%d [C]", _temp / 10, _temp % 10);
+
+		PROGBAR_SetText(hProgbar_temp, buffer);
+		PROGBAR_SetValue(hProgbar_temp, 25);
+		
+		sprintf(buffer, "%04d.%02d [hPa]", _press / 100, _press % 100);
+		
+		PROGBAR_SetText(hProgbar_press, buffer);
+		PROGBAR_SetValue(hProgbar_press, 75);
+		
+		GUI_Exec();
 	}
-	
-	GUI_ClearRect(10, 5, 230, 260);
+	PROGBAR_Delete(hProgbar_temp);
+	PROGBAR_Delete(hProgbar_press);
+	GUI_ClearRect(10, 5, 230, 260 + 230 + 230);
 	
 	if(keyFlag == CLOCK_KEY) keyFlag = SETTING_KEY;
 	
 	return keyFlag;
 }
 
+/*
+	CLOCK SET GUI loop
+*/
 uint16_t GUI_StartScreenClockSetting(){
 	int keyFlag = 0;
 	char buffer[50] = "";
@@ -375,6 +478,9 @@ uint16_t GUI_StartScreenClockSetting(){
 	return keyFlag;
 }
 
+/*
+	ALARM GUI loop
+*/
 uint16_t GUI_StartScreenAlarm(void){
 	int keyFlag = 0;
 
@@ -387,27 +493,22 @@ uint16_t GUI_StartScreenAlarm(void){
 	return keyFlag;
 }
 
-void deleteButtons(uint8_t start, uint8_t stop){
-	uint8_t i;
-	for (i = start; i <= stop; i++) BUTTON_Delete(hButtons[i]);
-}
-
-void setFonts(uint8_t start, uint8_t stop, const GUI_FONT GUI_UNI_PTR * pfont){
-	uint8_t i;
-	for (i = start; i <= stop; i++) BUTTON_SetFont(hButtons[i], pfont);
-}
-
 /* User handler for 1ms interrupts */
 void TM_DELAY_1msHandler(void) {
 	/* Call periodically each 1ms */
-	TM_EMWIN_UpdateTouch();
+	if (_I2Cx_state == BUS_FREE)
+		TM_EMWIN_UpdateTouch();
 	
-	if (TEA5767_Flags == TEA5767_SET_FREQUENCY) TEA5767_Set_Frequency(freq);
-	if (TEA5767_Flags == TEA5767_SCAN) {TEA5767_Search_Up(); freq = TEA5767_Get_Frequency();}
+	if (TEA5767_Flags == TEA5767_SET_FREQUENCY) TEA5767_Set_Frequency(_freq);
+	if (TEA5767_Flags == TEA5767_SCAN) {TEA5767_Search_Up(); _freq = TEA5767_Get_Frequency();}
 	if (TEA5767_Flags == TEA5767_MUTE_ON) TEA5767_Mute(TEA5767_MUTE_ON);
 	if (TEA5767_Flags == TEA5767_MUTE_OFF) TEA5767_Mute(TEA5767_MUTE_OFF);
-	if (BMP180_Flags == BMP180_INIT) BMP180_initialize();
-	
+//	if (BMP180_Flags == BMP180_INIT) BMP180_initialize();
+//	if (BMP180_Flags == BMP180_MEASURE_TEMPERATURE) BMP180_startMeasurement(BMP180_M_TEMP); 
+//	if (BMP180_Flags == BMP180_MEASURE_PRESSURE) BMP180_startMeasurement(BMP180_M_TEMP);
+//	if (BMP180_Flags == BMP180_READ_RESULT_TEMPERATURE) _temp = BMP180_readResult();
+//	if (BMP180_Flags == BMP180_READ_RESULT_PRESSURE) _press = BMP180_readResult();
+		
 	TEA5767_Flags = TEA5767_NO_FLAG;
 	BMP180_Flags = BMP180_NO_FLAG;
 }
@@ -420,13 +521,16 @@ void TM_RTC_RequestHandler() {
 	TM_RTC_GetDateTime(&Time, TM_RTC_Format_BIN);
 	
 	/* Format time */
-	sprintf(buf, "%02d.%02d.%04d %02d:%02d:%02d  Unix: %u\n",
+	sprintf(buf, "%02d.%02d.%04d %02d:%02d:%02d  %f %d/%d  Unix: %u\n",
 				Time.date,
 				Time.month,
 				Time.year + 2000,
 				Time.hours,
 				Time.minutes,
 				Time.seconds,
+				_freq,
+				_temp,
+				_press,
 				Time.unix
 	);
 	

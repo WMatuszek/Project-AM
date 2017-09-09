@@ -20,7 +20,11 @@
 #include "GUI_screens.h"
 #include "defines.h"
 
+#include "bmp180.h"
+
 int main(void) {
+	uint16_t sceneFlag;
+	
 	enum scene {
 	RADIO = GUI_ID_BUTTON1, 
 	CLOCK = GUI_ID_BUTTON2, 
@@ -37,7 +41,7 @@ int main(void) {
 		/* Initialization error */
 		while (1) {
 			TM_DISCO_LedToggle(LED_RED);	
-			Delayms(100);
+			Delayms(200);
 		}
 	}
 	
@@ -45,13 +49,13 @@ int main(void) {
 	if (GUI_TEA5767_Init(I2C3) != GUI_INIT_OK){
 		while (1) {
 			TM_DISCO_LedToggle(LED_RED);	
-			Delayms(100);
+			Delayms(1000);
 		}
 	}
 	if (GUI_BMP180_Init(I2C3) != GUI_INIT_OK){
 		while (1) {
 			TM_DISCO_LedToggle(LED_RED);	
-			Delayms(100);
+			Delayms(2000);
 		}		
 	}
 	
@@ -70,7 +74,7 @@ int main(void) {
 	TM_RTC_Interrupts(TM_RTC_Int_1s);
 	
 	GUI_InitMenu();
-	uint16_t sceneFlag = CLOCK;
+	sceneFlag = CLOCK;
 	while (1) {
 		switch (sceneFlag){
 			case RADIO:
