@@ -24,20 +24,19 @@ static const uint8_t REGVAL_M_PRESS_OSS_0	= 0x34;
 
 // ------------------------------------------------------------------------------- //
 
+static uint8_t _driverState = 0; 
+
 /*
  * I2C bus interface
  */
 static BMP180_I2C_interface i2c;
 
-/*
- * Calibration values
- */
+// Calibration values
 static BMP180_calibrationValues calib;
-
 // Currently requested measurement
 static BMP180_measure_t currentMeasurement = BMP180_M_NONE;
 // Currently set oversampling (?)
-static uint8_t currentOSS = 0;
+static uint16_t currentOSS = 0;
 
 // ------------------------------------------------------------------------------- //
 
@@ -48,6 +47,13 @@ static uint8_t resolveMeasurement(BMP180_measure_t mt){
 }
 
 // ------------------------------------------------------------------------------- //
+
+/*
+ * BMP180_isInitialized
+ */
+uint8_t BMP180_isReady(void){
+	return _driverState;
+}
 
 /*
  * BMP180_initialize
@@ -62,8 +68,8 @@ uint8_t BMP180_initialize(){
 	
 	calib.B5 = 2400; // Used for pressure calc, updated every temp calculation
 	
-	BMP180_readCalibrationData();
-	
+	_driverState = 1;
+
 	return BMP180_RCODE_OK;
 }
 
@@ -80,7 +86,7 @@ uint8_t BMP180_initialize2(BMP180_I2C_interface i2c_interface){
 		
 	calib.B5 = 2400;// Used for pressure calc, updated every temp calculation
 	
-	BMP180_readCalibrationData();
+	_driverState = 1;
 	
 	return BMP180_RCODE_OK;
 }
@@ -120,6 +126,8 @@ void BMP180_readCalibrationData(){
 	calib.MB  = (int16_t)	((uint16_t)rawCalibData[16] << 8 | rawCalibData[17]);
 	calib.MC  = (int16_t)	((uint16_t)rawCalibData[18] << 8 | rawCalibData[19]);
 	calib.MD  = (int16_t)	((uint16_t)rawCalibData[20] << 8 | rawCalibData[21]);
+	
+	_driverState = 2;
 }
 
 /*

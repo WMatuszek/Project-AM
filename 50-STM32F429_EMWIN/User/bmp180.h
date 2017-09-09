@@ -38,7 +38,13 @@ typedef struct BMP180_calibrationValues {
 } BMP180_calibrationValues;
 
 /**
-	@brief Initialize driver - check i2c interface validity, calibrate
+	@brief Check for driver initialization
+	@retval 2 if ready, 1 if initialized but no calib data, 0 if not
+*/
+uint8_t BMP180_isInitialized(void);
+
+/**
+	@brief Initialize driver - check i2c interface validity
 	@note Requires initialized i2c interface stuct
 	@retval Retcode BMP180_RCODE_OK or BMP180_RCODE_FAIL
 */
@@ -46,7 +52,7 @@ uint8_t BMP180_initialize(void);
 
 
 /**
-	@brief Initialize driver - check i2c interface validity, calibrate
+	@brief Initialize driver - check i2c interface validity
 	@param Initialized i2c interface structure to be used by the driver
 	@retval Retcode BMP180_RCODE_OK or BMP180_RCODE_FAIL
 */
@@ -61,7 +67,7 @@ BMP180_I2C_interface* BMP180_getI2CInterfacePtr(void);
 
 
 /**
-	@brief Read BMP180 calibration data, store in calibration data struct
+	@brief Read BMP180 calibration data, store in data struct
 	@retval Void
 */
 void BMP180_readCalibrationData(void);

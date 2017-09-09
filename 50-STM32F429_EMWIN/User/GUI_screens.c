@@ -52,7 +52,7 @@ static I2C_TypeDef* _I2Cx = I2C3;
 uint16_t _counter = 0x00;
 
 // I2C access flag
-SERIAL_STATE_t _I2Cx_state;
+SERIAL_STATE_t _I2Cx_state = BUS_FREE;
 
 // Data from sensors
 float _freq = 87.8;
@@ -140,6 +140,10 @@ GUI_InitResult GUI_BMP180_Init(I2C_TypeDef* I2Cx){
 	_I2Cx_state = BUS_FREE;
 	
 	Delayms(100);
+	
+	_I2Cx_state = BUS_BUSY;
+	BMP180_readCalibrationData();
+	_I2Cx_state = BUS_FREE;
 	
 	_I2Cx_state = BUS_BUSY;
 	deviceID = BMP180_readID();
@@ -264,9 +268,9 @@ uint16_t GUI_StartScreenRadio(void){
 	CLOCK GUI loop
 */
 uint16_t GUI_StartScreenClock(){
-	const uint8_t TEMP_MEAS_DELAY_MS = 6;
-	const uint8_t PRESS_MEAS_DELAY_MS = 6;
-	const uint8_t MID_MEAS_DELAY = 10;
+	const uint8_t TEMP_MEAS_DELAY_MS = 10;
+	const uint8_t PRESS_MEAS_DELAY_MS = 10;
+	const uint8_t MID_MEAS_DELAY = 25;
 	int keyFlag = 0;
 	double modf_temp;
 	char buffer[50] = "";
@@ -280,6 +284,7 @@ uint16_t GUI_StartScreenClock(){
 	while(keyFlag != RADIO_KEY && keyFlag != CLOCK_KEY && keyFlag != ALARM_KEY){
 	//while(keyFlag != RADIO_KEY && keyFlag != SETTING_KEY && keyFlag != ALARM_KEY){
 		keyFlag = GUI_GetKey();
+
 		// Temperature measurement
 		Delayms(MID_MEAS_DELAY);
 		_I2Cx_state = BUS_BUSY;
@@ -313,12 +318,12 @@ uint16_t GUI_StartScreenClock(){
 		sprintf(buffer, "%02d.%d [C]", _temp / 10, _temp % 10);
 
 		PROGBAR_SetText(hProgbar_temp, buffer);
-		PROGBAR_SetValue(hProgbar_temp, 25);
+		PROGBAR_SetValue(hProgbar_temp, _temp * 10 / 65);
 		
 		sprintf(buffer, "%04d.%02d [hPa]", _press / 100, _press % 100);
 		
 		PROGBAR_SetText(hProgbar_press, buffer);
-		PROGBAR_SetValue(hProgbar_press, 75);
+		PROGBAR_SetValue(hProgbar_press, (_press - 30000) / 800);
 		
 		GUI_Exec();
 	}
