@@ -331,7 +331,7 @@ uint16_t GUI_StartScreenClock(){
 	}
 	PROGBAR_Delete(hProgbar_temp);
 	PROGBAR_Delete(hProgbar_press);
-	GUI_ClearRect(10, 5, 230, 260 + 230 + 230);
+	GUI_ClearRect(10, 5, 230, 260);
 	
 	if(keyFlag == CLOCK_KEY) keyFlag = SETTING_KEY;
 	
@@ -497,8 +497,16 @@ uint16_t GUI_StartScreenAlarm(void){
 		
 	}
 	
+	GUI_ClearRect(10, 5, 230, 260);
+	
 	return keyFlag;
 }
+
+/*
+ * -------------------------------------------------------------
+ *									IRQ_Handlers
+ * -------------------------------------------------------------
+ */ 
 
 /* User handler for 1ms interrupts */
 void TM_DELAY_1msHandler(void) {
@@ -543,7 +551,6 @@ void TM_RTC_RequestHandler() {
 /* Custom request handler function */
 /* Called on alarm A interrupt */
 void TM_RTC_AlarmAHandler(void) {
-	/* Show user to USART */
 	TM_USART_Puts(USART1, "Alarm A triggered\n");
 	
 	/* Disable Alarm so it will not trigger next week at the same time */
@@ -553,9 +560,8 @@ void TM_RTC_AlarmAHandler(void) {
 /* Custom request handler function */
 /* Called on alarm B interrupt */
 void TM_RTC_AlarmBHandler(void) {
-	/* Show user to USART */
 	TM_USART_Puts(USART1, "Alarm B triggered\n");
 	
 	/* Disable Alarm so it will not trigger next month at the same date and time */
-	//TM_RTC_DisableAlarm(TM_RTC_Alarm_A);
+	//TM_RTC_DisableAlarm(TM_RTC_Alarm_B);
 }
