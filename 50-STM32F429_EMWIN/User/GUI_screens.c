@@ -6,7 +6,6 @@
 #include "button.h"
 #include "DIALOG.h"
 #include "stdio.h"
-#include "stdlib.h"
 #include "math.h"
 #include "tea5767.h"
 #include "bmp180.h"
@@ -17,15 +16,6 @@ typedef enum {
 	ALARM_KEY = GUI_ID_BUTTON3,
 	SETTING_KEY = GUI_ID_BUTTON4
 } GUI_key_names;
-
-typedef enum {
-	BMP180_NO_FLAG,
-	BMP180_INIT,
-	BMP180_MEASURE_TEMPERATURE,
-	BMP180_MEASURE_PRESSURE,
-	BMP180_READ_RESULT_TEMPERATURE,
-	BMP180_READ_RESULT_PRESSURE
-} BMP180_Flag_t;
 
 typedef enum {
 	TEA5767_NO_FLAG,
@@ -39,7 +29,6 @@ typedef enum {
 } SERIAL_STATE_t;
 
 uint8_t TEA5767_Flags = TEA5767_NO_FLAG;
-uint8_t BMP180_Flags = BMP180_NO_FLAG;
 
 // Button handles
 BUTTON_Handle hButtons[20];
@@ -227,11 +216,18 @@ uint16_t GUI_StartScreenRadio(void){
 				_freq = floor(_freq * 10 + 0.5) / 10;
 				if (_freq < 87.6) _freq = 107.6;
 				TEA5767_Flags = TEA5767_SET_FREQUENCY;
+				_I2Cx_state = BUS_BUSY;
+				TEA5767_Set_Frequency(_freq);
+				_I2Cx_state = BUS_FREE;
 				break;
 			
 			case GUI_ID_BUTTON5:
 				// scan up			
 				TEA5767_Flags = TEA5767_SCAN;
+				_I2Cx_state = BUS_BUSY;
+				TEA5767_Search_Up();
+				_freq = TEA5767_Get_Frequency();
+				_I2Cx_state = BUS_FREE;
 				break;
 			
 			case GUI_ID_BUTTON6:
@@ -239,17 +235,24 @@ uint16_t GUI_StartScreenRadio(void){
 				_freq = _freq + 0.1;
 				_freq = floor(_freq * 10 + 0.5) / 10;
 				if (_freq > 107.6) _freq = 87.6;
-				TEA5767_Flags = TEA5767_SET_FREQUENCY;					
+				TEA5767_Flags = TEA5767_SET_FREQUENCY;	
+				_I2Cx_state = BUS_BUSY;
+				TEA5767_Set_Frequency(_freq);
+				_I2Cx_state = BUS_FREE;			
 				break;
 			
 			case GUI_ID_BUTTON7:
 				// mute
 				if (mute == TEA5767_MUTE_ON) {
-					TEA5767_Flags = TEA5767_MUTE_OFF;
+					_I2Cx_state = BUS_BUSY;
+					TEA5767_Mute(TEA5767_MUTE_OFF);
+					_I2Cx_state = BUS_FREE;
 					mute = TEA5767_MUTE_OFF;
 				}
 				else {
-					TEA5767_Flags = TEA5767_MUTE_ON;
+					_I2Cx_state = BUS_BUSY;
+					TEA5767_Mute(TEA5767_MUTE_ON);
+					_I2Cx_state = BUS_FREE;
 					mute = TEA5767_MUTE_ON;
 				}
 				break;
@@ -272,7 +275,6 @@ uint16_t GUI_StartScreenClock(){
 	const uint8_t PRESS_MEAS_DELAY_MS = 10;
 	const uint8_t MID_MEAS_DELAY = 25;
 	int keyFlag = 0;
-	double modf_temp;
 	char buffer[50] = "";
 	
 	PROGBAR_Handle hProgbar_temp = PROGBAR_CreateEx(10, 75, 219, 30, 0, WM_CF_SHOW, 0, GUI_ID_PROGBAR0);
@@ -504,18 +506,10 @@ void TM_DELAY_1msHandler(void) {
 	if (_I2Cx_state == BUS_FREE)
 		TM_EMWIN_UpdateTouch();
 	
-	if (TEA5767_Flags == TEA5767_SET_FREQUENCY) TEA5767_Set_Frequency(_freq);
-	if (TEA5767_Flags == TEA5767_SCAN) {TEA5767_Search_Up(); _freq = TEA5767_Get_Frequency();}
-	if (TEA5767_Flags == TEA5767_MUTE_ON) TEA5767_Mute(TEA5767_MUTE_ON);
-	if (TEA5767_Flags == TEA5767_MUTE_OFF) TEA5767_Mute(TEA5767_MUTE_OFF);
-//	if (BMP180_Flags == BMP180_INIT) BMP180_initialize();
-//	if (BMP180_Flags == BMP180_MEASURE_TEMPERATURE) BMP180_startMeasurement(BMP180_M_TEMP); 
-//	if (BMP180_Flags == BMP180_MEASURE_PRESSURE) BMP180_startMeasurement(BMP180_M_TEMP);
-//	if (BMP180_Flags == BMP180_READ_RESULT_TEMPERATURE) _temp = BMP180_readResult();
-//	if (BMP180_Flags == BMP180_READ_RESULT_PRESSURE) _press = BMP180_readResult();
+//	if (TEA5767_Flags == TEA5767_SET_FREQUENCY) TEA5767_Set_Frequency(_freq);
+//	if (TEA5767_Flags == TEA5767_SCAN) {TEA5767_Search_Up(); _freq = TEA5767_Get_Frequency();}
 		
 	TEA5767_Flags = TEA5767_NO_FLAG;
-	BMP180_Flags = BMP180_NO_FLAG;
 }
 
 /* Custom request handler function */
