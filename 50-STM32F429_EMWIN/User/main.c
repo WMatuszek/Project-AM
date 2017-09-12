@@ -1,16 +1,10 @@
 /**
- *	Keil project example for emWin
- *
- *	Before you start, select your target, on the right of the "Load" button
- *
- *	@author		Tilen Majerle
- *	@email		tilen@majerle.eu
- *	@website	http://stm32f4-discovery.com
- *	@ide		Keil uVision 5
+ *	@author		Witold Matuszek, Pawel Jacalski
+ *	@website		http://stm32f4-discovery.com
+ *	@ide			Keil uVision 5
  *	@packs		STM32F4xx Keil packs version 2.2.0 or greater required
  *	@stdperiph	STM32F4xx Standard peripheral drivers version 1.4.0 or greater required
  */
-/* Include core modules */
 #include "stm32f4xx.h"
 #include "tm_stm32f4_delay.h"
 #include "tm_stm32f4_disco.h"
