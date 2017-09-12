@@ -10,6 +10,8 @@
 #include "tea5767.h"
 #include "bmp180.h"
 
+static const uint16_t GUI_LOOP_DELAY_MS = 50;
+
 typedef enum {
 	RADIO_KEY = GUI_ID_BUTTON1,
 	CLOCK_KEY = GUI_ID_BUTTON2,
@@ -18,23 +20,22 @@ typedef enum {
 } GUI_key_names;
 
 typedef enum {
-	TEA5767_NO_FLAG,
-	TEA5767_SET_FREQUENCY,
-	TEA5767_SCAN
-} TEA5767_Flag_t;
-
-typedef enum {
 	BUS_FREE = 0,
 	BUS_BUSY = 1 
 } SERIAL_STATE_t;
 
-uint8_t TEA5767_Flags = TEA5767_NO_FLAG;
-
+typedef enum {
+	ALRM_DIS = 0,
+	ALRM_EN = 1
+} ALRM_STATE_t;
 // Button handles
 BUTTON_Handle hButtons[20];
 
 TM_RTC_Time_t Time;
-TM_RTC_AlarmTime_t AlarmTime;
+TM_RTC_AlarmTime_t AlarmTimeA;
+TM_RTC_AlarmTime_t AlarmTimeB;
+ALRM_STATE_t AlarmStateA = ALRM_DIS;
+ALRM_STATE_t AlarmStateB = ALRM_DIS;
 
 static I2C_TypeDef* _I2Cx = I2C3;
 
@@ -105,8 +106,10 @@ GUI_InitResult GUI_TEA5767_Init(I2C_TypeDef* I2Cx){
 	tea5767i2cInterfacePtr->readBytesNoRegister = tea5767compliant_readBytesNoRegister;
 	tea5767i2cInterfacePtr->isConnected = tea5767compliant_isConnected;
 		
+	_I2Cx_state = BUS_BUSY;
 	TEA5767_Init(); // SCL = PA8, SDA = PC9
-	TEA5767_Flags = 0x01;
+	TEA5767_Set_Frequency(_freq);
+	_I2Cx_state = BUS_FREE;
 	return GUI_INIT_OK;
 }
 
@@ -132,9 +135,6 @@ GUI_InitResult GUI_BMP180_Init(I2C_TypeDef* I2Cx){
 	
 	_I2Cx_state = BUS_BUSY;
 	BMP180_readCalibrationData();
-	_I2Cx_state = BUS_FREE;
-	
-	_I2Cx_state = BUS_BUSY;
 	deviceID = BMP180_readID();
 	_I2Cx_state = BUS_FREE;
 	
@@ -201,6 +201,7 @@ uint16_t GUI_StartScreenRadio(void){
 	GUI_Exec();
 	
 	while(keyFlag != CLOCK_KEY && keyFlag != ALARM_KEY){
+		Delayms(GUI_LOOP_DELAY_MS);
 		keyFlag = GUI_GetKey();
 		
 		if (mute == TEA5767_MUTE_ON) sprintf(buffer, "%.2f FM \nMUTE ON", _freq);
@@ -215,7 +216,7 @@ uint16_t GUI_StartScreenRadio(void){
 				_freq = _freq - 0.1;
 				_freq = floor(_freq * 10 + 0.5) / 10;
 				if (_freq < 87.6) _freq = 107.6;
-				TEA5767_Flags = TEA5767_SET_FREQUENCY;
+				//TEA5767_Flags = TEA5767_SET_FREQUENCY;
 				_I2Cx_state = BUS_BUSY;
 				TEA5767_Set_Frequency(_freq);
 				_I2Cx_state = BUS_FREE;
@@ -223,7 +224,7 @@ uint16_t GUI_StartScreenRadio(void){
 			
 			case GUI_ID_BUTTON5:
 				// scan up			
-				TEA5767_Flags = TEA5767_SCAN;
+				//TEA5767_Flags = TEA5767_SCAN;
 				_I2Cx_state = BUS_BUSY;
 				TEA5767_Search_Up();
 				_freq = TEA5767_Get_Frequency();
@@ -235,7 +236,7 @@ uint16_t GUI_StartScreenRadio(void){
 				_freq = _freq + 0.1;
 				_freq = floor(_freq * 10 + 0.5) / 10;
 				if (_freq > 107.6) _freq = 87.6;
-				TEA5767_Flags = TEA5767_SET_FREQUENCY;	
+				//TEA5767_Flags = TEA5767_SET_FREQUENCY;	
 				_I2Cx_state = BUS_BUSY;
 				TEA5767_Set_Frequency(_freq);
 				_I2Cx_state = BUS_FREE;			
@@ -282,9 +283,27 @@ uint16_t GUI_StartScreenClock(){
 	PROGBAR_SetFont(hProgbar_temp, &GUI_Font8x16);
 	PROGBAR_SetFont(hProgbar_press, &GUI_Font8x16);
 	
+	if (AlarmStateA == ALRM_EN){
+		sprintf(buffer, "Alrm A: %02d/%02d:%02d:%02d",
+			AlarmTimeA.day,
+			AlarmTimeA.hours,
+			AlarmTimeA.minutes,
+			AlarmTimeA.seconds);
+	}
+	TM_ILI9341_Puts(10, 150, AlarmStateA ? buffer : "Alrm A: disabled", &TM_Font_11x18, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
+		
+	if (AlarmStateB == ALRM_EN){
+		sprintf(buffer, "Alrm B: %02d/%02d:%02d:%02d",
+			AlarmTimeB.day,
+			AlarmTimeB.hours,
+			AlarmTimeB.minutes,
+			AlarmTimeB.seconds);
+	}
+	TM_ILI9341_Puts(10, 175, AlarmStateB ? buffer : "Alrm B: disabled", &TM_Font_11x18, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
+	
 	
 	while(keyFlag != RADIO_KEY && keyFlag != CLOCK_KEY && keyFlag != ALARM_KEY){
-	//while(keyFlag != RADIO_KEY && keyFlag != SETTING_KEY && keyFlag != ALARM_KEY){
+		Delayms(GUI_LOOP_DELAY_MS);
 		keyFlag = GUI_GetKey();
 
 		// Temperature measurement
@@ -383,6 +402,7 @@ uint16_t GUI_StartScreenClockSetting(){
 	GUI_Exec();
 	
 	while(keyFlag != ALARM_KEY && keyFlag != CLOCK_KEY && keyFlag != ALARM_KEY){
+		Delayms(GUI_LOOP_DELAY_MS);
 		keyFlag = GUI_GetKey();
 		
 		sprintf(buffer, "%02d:%02d:%02d",
@@ -490,12 +510,158 @@ uint16_t GUI_StartScreenClockSetting(){
 */
 uint16_t GUI_StartScreenAlarm(void){
 	int keyFlag = 0;
+	int isAlrmTypeDay = 1;
+	char buffer[50] = "";
+	TM_RTC_Time_t SetTime = Time;
+	
+	const uint16_t L_MARGIN = 18;
+	const uint16_t BUT_MARGIN = 6;
+	const uint16_t BUT_WID = 44;
+	hButtons[ 3] = BUTTON_CreateEx(L_MARGIN + 1*BUT_MARGIN, 4, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON4); // D+
+	hButtons[ 4] = BUTTON_CreateEx(L_MARGIN + 1*BUT_MARGIN, 70, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON5); // D-
+	hButtons[ 5] = BUTTON_CreateEx(L_MARGIN + 2*BUT_MARGIN + 1*BUT_WID, 4, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON6); // H+
+	hButtons[ 6] = BUTTON_CreateEx(L_MARGIN + 2*BUT_MARGIN + 1*BUT_WID, 70, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON7); // H-
+	hButtons[ 7] = BUTTON_CreateEx(L_MARGIN + 3*BUT_MARGIN + 2*BUT_WID, 4, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON8); // M+
+	hButtons[ 8] = BUTTON_CreateEx(L_MARGIN + 3*BUT_MARGIN + 2*BUT_WID, 70, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON9); // M-
+	hButtons[ 9] = BUTTON_CreateEx(L_MARGIN + 4*BUT_MARGIN + 3*BUT_WID, 4, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON10); // S+
+	hButtons[10] = BUTTON_CreateEx(L_MARGIN + 4*BUT_MARGIN + 3*BUT_WID, 70, BUT_WID, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON11); // S-
+	
+	hButtons[11] = BUTTON_CreateEx(L_MARGIN + 3*BUT_MARGIN + 2*BUT_WID, 115, 2*BUT_WID + BUT_MARGIN, 30, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON12); // Day/month type
+
+	hButtons[14] = BUTTON_CreateEx(15, 210, 70, 40, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON15); // On/off A	
+	hButtons[15] = BUTTON_CreateEx(155, 210, 70, 40, 0, WM_CF_SHOW, 0, GUI_ID_BUTTON16); // On/off B	
+	
+	TM_ILI9341_Puts( 25, 115, "Type", &TM_Font_16x26, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
+	TM_ILI9341_Puts( 25, 180, "-A-", &TM_Font_16x26, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
+	TM_ILI9341_Puts(165, 180, "-B-", &TM_Font_16x26, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
+
+	setFonts(3, 16, &GUI_Font13HB_ASCII);
+
+	BUTTON_SetText(hButtons[3], "+");
+	BUTTON_SetText(hButtons[4], "-");
+	BUTTON_SetText(hButtons[5], "+");
+	BUTTON_SetText(hButtons[6], "-");
+	BUTTON_SetText(hButtons[7], "+");
+	BUTTON_SetText(hButtons[8], "-");			
+	BUTTON_SetText(hButtons[9], "+");
+	BUTTON_SetText(hButtons[10], "-");
+	
+	BUTTON_SetText(hButtons[11], isAlrmTypeDay ? "DAY" : "MON");
+	
+	BUTTON_SetText(hButtons[14], AlarmStateA ? "ON" : "OFF");
+	BUTTON_SetText(hButtons[15], AlarmStateB ? "ON" : "OFF");
+
+	GUI_Exec();
 
 
 	while(keyFlag != RADIO_KEY && keyFlag != CLOCK_KEY){
+		Delayms(GUI_LOOP_DELAY_MS);
 		keyFlag = GUI_GetKey();
 		
+		sprintf(buffer, "%02d|%02d:%02d:%02d",
+			SetTime.day,
+			SetTime.hours,
+			SetTime.minutes,
+			SetTime.seconds
+		);
+		TM_ILI9341_Puts(30, 40, buffer, &TM_Font_16x26, ILI9341_COLOR_WHITE, ILI9341_COLOR_BLACK);
+	
+		switch(keyFlag){
+		case GUI_ID_BUTTON4: // day++
+			if (SetTime.day < (isAlrmTypeDay ? 7 : 31)) SetTime.day++;
+			else SetTime.date = 1;
+			break;
+		
+		case GUI_ID_BUTTON5: // day--
+			if (SetTime.day > 1) SetTime.day--;
+			break;
+		case GUI_ID_BUTTON6: // hour++
+			if (SetTime.hours < 23) SetTime.hours++;
+			else SetTime.hours = 0;
+			break;
+		
+		case GUI_ID_BUTTON7: // hour--
+			if (SetTime.hours > 0) SetTime.hours--;
+			else SetTime.hours = 23;
+			break;
+		
+		case GUI_ID_BUTTON8: // minute++
+			if (SetTime.minutes < 59) SetTime.minutes++;
+			else SetTime.minutes = 0;
+			break;
+		
+		case GUI_ID_BUTTON9: // minute--
+			if (SetTime.minutes > 0) SetTime.minutes--;
+			else SetTime.minutes = 59;
+			break;
+		
+		case GUI_ID_BUTTON10: // minute++
+			if (SetTime.seconds < 59) SetTime.seconds++;
+			else SetTime.seconds = 0;
+			break;
+		
+		case GUI_ID_BUTTON11: // minute--
+			if (SetTime.seconds > 0) SetTime.seconds--;
+			else SetTime.seconds = 59;
+			break;
+		
+		case GUI_ID_BUTTON12: // day/mon alrm type
+			if (isAlrmTypeDay) isAlrmTypeDay = 0;
+			else isAlrmTypeDay = 1;
+			// Update day if out of scope
+			if (SetTime.day > (isAlrmTypeDay ? 7 : 31)) SetTime.day = isAlrmTypeDay ? 7 : 31;
+			BUTTON_SetText(hButtons[11], isAlrmTypeDay ? "DAY" : "MON");
+			GUI_Exec();
+			break;
+
+
+		case GUI_ID_BUTTON15: // On/off A
+			if (AlarmStateA == ALRM_DIS){
+				AlarmTimeA.alarmtype = isAlrmTypeDay?TM_RTC_AlarmType_DayInWeek:TM_RTC_AlarmType_DayInMonth;
+				AlarmTimeA.day = SetTime.day;
+				AlarmTimeA.hours = SetTime.hours;
+				AlarmTimeA.minutes = SetTime.minutes;
+				AlarmTimeA.seconds = SetTime.seconds;
+				TM_RTC_SetAlarm(TM_RTC_Alarm_A, &AlarmTimeA, TM_RTC_Format_BIN);
+				AlarmStateA = ALRM_EN;
+				TM_USART_Puts(USART1, "Alarm A en\n");
+			}
+			else {
+				TM_RTC_DisableAlarm(TM_RTC_Alarm_A);
+				AlarmStateA = ALRM_DIS;
+				TM_USART_Puts(USART1, "Alarm A dis\n");
+			}
+			BUTTON_SetText(hButtons[14], AlarmStateA ? "ON" : "OFF");
+			GUI_Exec();
+			break;
+
+		case GUI_ID_BUTTON16: // On/off B
+			if (AlarmStateB == ALRM_DIS){
+				AlarmTimeB.alarmtype = isAlrmTypeDay?TM_RTC_AlarmType_DayInWeek:TM_RTC_AlarmType_DayInMonth;
+				AlarmTimeB.day = SetTime.day;
+				AlarmTimeB.hours = SetTime.hours;
+				AlarmTimeB.minutes = SetTime.minutes;
+				AlarmTimeB.seconds = SetTime.seconds;
+				TM_RTC_SetAlarm(TM_RTC_Alarm_B, &AlarmTimeB, TM_RTC_Format_BIN);
+				AlarmStateB = ALRM_EN;
+				TM_USART_Puts(USART1, "Alarm B en\n");
+			}
+			else {
+				TM_RTC_DisableAlarm(TM_RTC_Alarm_B);
+				AlarmStateB = ALRM_DIS;
+				TM_USART_Puts(USART1, "Alarm B dis\n");
+			}
+			BUTTON_SetText(hButtons[15], AlarmStateB ? "ON" : "OFF");
+			GUI_Exec();
+			break;
+		
+		default:
+			break;
+		}	
+		
 	}
+	
+	deleteButtons(3, 17);
 	
 	GUI_ClearRect(10, 5, 230, 260);
 	
@@ -513,38 +679,24 @@ void TM_DELAY_1msHandler(void) {
 	/* Call periodically each 1ms */
 	if (_I2Cx_state == BUS_FREE)
 		TM_EMWIN_UpdateTouch();
-	
-//	if (TEA5767_Flags == TEA5767_SET_FREQUENCY) TEA5767_Set_Frequency(_freq);
-//	if (TEA5767_Flags == TEA5767_SCAN) {TEA5767_Search_Up(); _freq = TEA5767_Get_Frequency();}
-		
-	TEA5767_Flags = TEA5767_NO_FLAG;
 }
 
 /* Custom request handler function */
 /* Called on wakeup interrupt */
 void TM_RTC_RequestHandler() {
-	/* Get time */
 	char buf[50];
 	TM_RTC_GetDateTime(&Time, TM_RTC_Format_BIN);
 	
 	/* Format time */
 	sprintf(buf, "%02d.%02d.%04d %02d:%02d:%02d  %f %d/%d  Unix: %u\n",
-				Time.date,
-				Time.month,
-				Time.year + 2000,
-				Time.hours,
-				Time.minutes,
-				Time.seconds,
-				_freq,
-				_temp,
-				_press,
+				Time.date, Time.month, Time.year + 2000,
+				Time.hours, Time.minutes, Time.seconds,
+				_freq, _temp, _press,
 				Time.unix
 	);
 	
-	/* Send to USART */
 	TM_USART_Puts(USART1, buf);
 	
-	/* Toggle LED */
 	TM_DISCO_LedToggle(LED_RED | LED_GREEN);
 }
 

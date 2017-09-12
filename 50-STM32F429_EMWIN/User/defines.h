@@ -37,6 +37,7 @@
 #define GUI_ID_BUTTON14 0x17E
 #define GUI_ID_BUTTON15 0x17F
 #define GUI_ID_BUTTON16 0x180
+#define GUI_ID_BUTTON17 0x181
 
 /* Put your global defines for all libraries here used in your project */
 
