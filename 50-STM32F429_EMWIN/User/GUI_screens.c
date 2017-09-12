@@ -31,54 +31,21 @@ typedef enum {
 // Button handles
 BUTTON_Handle hButtons[20];
 
-TM_RTC_Time_t Time;
-TM_RTC_AlarmTime_t AlarmTimeA;
-TM_RTC_AlarmTime_t AlarmTimeB;
-ALRM_STATE_t AlarmStateA = ALRM_DIS;
-ALRM_STATE_t AlarmStateB = ALRM_DIS;
+static TM_RTC_Time_t Time;
+static TM_RTC_AlarmTime_t AlarmTimeA;
+static TM_RTC_AlarmTime_t AlarmTimeB;
+static ALRM_STATE_t AlarmStateA = ALRM_DIS;
+static ALRM_STATE_t AlarmStateB = ALRM_DIS;
 
-static I2C_TypeDef* _I2Cx = I2C3;
-
-uint16_t _counter = 0x00;
+static uint16_t _counter = 0x00;
 
 // I2C access flag
-SERIAL_STATE_t _I2Cx_state = BUS_FREE;
+static SERIAL_STATE_t _I2Cx_state = BUS_FREE;
 
 // Data from sensors
 float _freq = 87.8;
 int32_t _temp = 0;
 int32_t _press = 0;
-
-/*
-	BMP180 interfacing functions
-*/
-uint8_t bmp180compliant_readByte(uint8_t addr, uint8_t reg){
-	return TM_I2C_Read(_I2Cx, addr, reg);
-}
-void bmp180compliant_readBytes(uint8_t addr, uint8_t reg, uint8_t *data, uint16_t count){
-	TM_I2C_ReadMulti(_I2Cx, addr, reg, data, count);
-}
-void bmp180compliant_writeByte(uint8_t addr, uint8_t reg, uint8_t data){
-	TM_I2C_Write(_I2Cx, addr, reg, data);
-}
-void bmp180compliant_writeBytes(uint8_t addr, uint8_t reg, uint8_t *data, uint16_t count){
-	TM_I2C_WriteMulti(_I2Cx, addr, reg, data, count);
-}
-
-/*
-	TEA5767 interfacing functions
-*/
-void tea5767compliant_writeBytesNoRegister(uint8_t addr, uint8_t *data, uint16_t count){
-	TM_I2C_WriteMultiNoRegister(_I2Cx, addr, data, count);
-}
-
-void tea5767compliant_readBytesNoRegister(uint8_t addr, uint8_t *data, uint16_t count){
-	TM_I2C_ReadMultiNoRegister(_I2Cx, addr, data, count);
-}
-
-uint8_t tea5767compliant_isConnected(uint8_t addr){
-	return TM_I2C_IsDeviceConnected(_I2Cx, addr);
-}
 
 /*
 	Fonts/buttons
@@ -97,15 +64,6 @@ void setFonts(uint8_t start, uint8_t stop, const GUI_FONT GUI_UNI_PTR * pfont){
 	Sensor/radio install interface
 */
 GUI_InitResult GUI_TEA5767_Init(I2C_TypeDef* I2Cx){
-	TEA5767_I2C_interface* tea5767i2cInterfacePtr;
-	
-	_I2Cx = I2Cx;
-	
-	tea5767i2cInterfacePtr = TEA5767_getI2CInterfacePtr();
-	tea5767i2cInterfacePtr->writeBytesNoRegister = tea5767compliant_writeBytesNoRegister;
-	tea5767i2cInterfacePtr->readBytesNoRegister = tea5767compliant_readBytesNoRegister;
-	tea5767i2cInterfacePtr->isConnected = tea5767compliant_isConnected;
-		
 	_I2Cx_state = BUS_BUSY;
 	TEA5767_Init(); // SCL = PA8, SDA = PC9
 	TEA5767_Set_Frequency(_freq);
@@ -114,21 +72,10 @@ GUI_InitResult GUI_TEA5767_Init(I2C_TypeDef* I2Cx){
 }
 
 GUI_InitResult GUI_BMP180_Init(I2C_TypeDef* I2Cx){
-	//char buf[50];
 	uint8_t deviceID = 0x00;
-	BMP180_I2C_interface * bmp180i2cInterfacePtr;
-
-	_I2Cx = I2Cx;
 	
-	bmp180i2cInterfacePtr = BMP180_getI2CInterfacePtr();
-	bmp180i2cInterfacePtr->readByte = bmp180compliant_readByte;
-	bmp180i2cInterfacePtr->readBytes = bmp180compliant_readBytes;
-	bmp180i2cInterfacePtr->writeByte = bmp180compliant_writeByte;
-	bmp180i2cInterfacePtr->writeBytes = bmp180compliant_writeBytes;
-	
-	//BMP180_Flags = BMP180_INIT;
 	_I2Cx_state = BUS_BUSY;
-	BMP180_initialize2(*bmp180i2cInterfacePtr);
+	BMP180_initialize();
 	_I2Cx_state = BUS_FREE;
 	
 	Delayms(100);

@@ -21,9 +21,50 @@
 #include "defines.h"
 
 #include "bmp180.h"
+#include "tea5767.h"
 
+static I2C_TypeDef* _I2Cx = I2C3; // SCL = PA8, SDA = PC9
+
+/*
+	BMP180 interfacing functions
+*/
+uint8_t bmp180compliant_readByte(uint8_t addr, uint8_t reg){
+	return TM_I2C_Read(_I2Cx, addr, reg);
+}
+void bmp180compliant_readBytes(uint8_t addr, uint8_t reg, uint8_t *data, uint16_t count){
+	TM_I2C_ReadMulti(_I2Cx, addr, reg, data, count);
+}
+void bmp180compliant_writeByte(uint8_t addr, uint8_t reg, uint8_t data){
+	TM_I2C_Write(_I2Cx, addr, reg, data);
+}
+void bmp180compliant_writeBytes(uint8_t addr, uint8_t reg, uint8_t *data, uint16_t count){
+	TM_I2C_WriteMulti(_I2Cx, addr, reg, data, count);
+}
+
+/*
+	TEA5767 interfacing functions
+*/
+void tea5767compliant_writeBytesNoRegister(uint8_t addr, uint8_t *data, uint16_t count){
+	TM_I2C_WriteMultiNoRegister(_I2Cx, addr, data, count);
+}
+
+void tea5767compliant_readBytesNoRegister(uint8_t addr, uint8_t *data, uint16_t count){
+	TM_I2C_ReadMultiNoRegister(_I2Cx, addr, data, count);
+}
+
+uint8_t tea5767compliant_isConnected(uint8_t addr){
+	return TM_I2C_IsDeviceConnected(_I2Cx, addr);
+}
+
+// -------------------------------------------------------------------------------------- //
+
+/*
+	MAIN
+*/
 int main(void) {
 	uint16_t sceneFlag;
+	TEA5767_I2C_interface* tea5767i2cInterfacePtr;
+	BMP180_I2C_interface * bmp180i2cInterfacePtr;	
 	
 	enum scene {
 	RADIO = GUI_ID_BUTTON1, 
@@ -38,20 +79,32 @@ int main(void) {
 		
 	/* Initialize emWin */
 	if (TM_EMWIN_Init() != TM_EMWIN_Result_Ok) {
-		/* Initialization error */
 		while (1) {
 			TM_DISCO_LedToggle(LED_RED);	
 			Delayms(200);
 		}
 	}
 	
-	// SCL = PA8, SDA = PC9
+	// Init TEA5767 I2C interface 
+	tea5767i2cInterfacePtr = TEA5767_getI2CInterfacePtr();
+	tea5767i2cInterfacePtr->writeBytesNoRegister = tea5767compliant_writeBytesNoRegister;
+	tea5767i2cInterfacePtr->readBytesNoRegister = tea5767compliant_readBytesNoRegister;
+	tea5767i2cInterfacePtr->isConnected = tea5767compliant_isConnected;
+	// Init TEA5767
 	if (GUI_TEA5767_Init(I2C3) != GUI_INIT_OK){
 		while (1) {
 			TM_DISCO_LedToggle(LED_RED);	
 			Delayms(1000);
 		}
 	}
+	
+	// Init BMP180 I2C interface 
+	bmp180i2cInterfacePtr = BMP180_getI2CInterfacePtr();
+	bmp180i2cInterfacePtr->readByte = bmp180compliant_readByte;
+	bmp180i2cInterfacePtr->readBytes = bmp180compliant_readBytes;
+	bmp180i2cInterfacePtr->writeByte = bmp180compliant_writeByte;
+	bmp180i2cInterfacePtr->writeBytes = bmp180compliant_writeBytes;
+	// Init BMP180
 	if (GUI_BMP180_Init(I2C3) != GUI_INIT_OK){
 		while (1) {
 			TM_DISCO_LedToggle(LED_RED);	
@@ -63,13 +116,7 @@ int main(void) {
 	
 	TM_USART_Init(USART1, TM_USART_PinsPack_1, 115200); // TX: PA9, RX: PA10
 	
-	/* Initialize RTC with internal 32768Hz clock */
-	/* It's not very accurate */
-	if (!TM_RTC_Init(TM_RTC_ClockSource_Internal)) {
-		/* RTC was first time initialized */
-		/* Do your stuff here */
-		/* eg. set default time */
-	}
+	if (!TM_RTC_Init(TM_RTC_ClockSource_Internal)) {}
 	
 	TM_RTC_Interrupts(TM_RTC_Int_1s);
 	
